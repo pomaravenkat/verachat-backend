@@ -346,6 +346,54 @@ app.post('/api/posts/:id/comments', authenticate, async (req, res) => {
   }
 });
 
+// DELETE /api/comments/:id — delete comment (author or post owner)
+app.delete('/api/comments/:id', authenticate, async (req, res) => {
+  try {
+    const commentId = req.params.id;
+    const userId = req.user.id;
+
+    // 1. Fetch comment to get its author and related post
+    const { data: comment, error: fetchError } = await supabaseAdmin
+      .from('comments')
+      .select('id, user_id, post_id')
+      .eq('id', commentId)
+      .single();
+
+    if (fetchError || !comment) {
+      return res.status(404).json({ error: 'Comment not found' });
+    }
+
+    // 2. Check if user is comment author
+    if (comment.user_id === userId) {
+      // Allow delete
+    } else {
+      // 3. Check if user is post owner
+      const { data: post } = await supabaseAdmin
+        .from('posts')
+        .select('user_id')
+        .eq('id', comment.post_id)
+        .single();
+
+      if (!post || post.user_id !== userId) {
+        return res.status(403).json({ error: 'Unauthorized' });
+      }
+    }
+
+    // 4. Delete comment
+    const { error: deleteError } = await supabaseAdmin
+      .from('comments')
+      .delete()
+      .eq('id', commentId);
+
+    if (deleteError) throw deleteError;
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to delete comment' });
+  }
+});
+
 // ==============================================
 //  PROFILE
 // ==============================================
