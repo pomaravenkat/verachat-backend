@@ -397,6 +397,49 @@ app.delete('/api/comments/:id', authenticate, async (req, res) => {
   }
 });
 
+// PUT /api/comments/:id — update comment (author only)
+app.put('/api/comments/:id', authenticate, async (req, res) => {
+  try {
+    const commentId = req.params.id;
+    const userId = req.user.id;
+    const { content } = req.body;
+
+    if (!content || !content.trim()) {
+      return res.status(400).json({ error: 'Content is required' });
+    }
+
+    // 1. Fetch comment to verify ownership
+    const { data: comment, error: fetchError } = await supabaseAdmin
+      .from('comments')
+      .select('user_id')
+      .eq('id', commentId)
+      .single();
+
+    if (fetchError || !comment) {
+      return res.status(404).json({ error: 'Comment not found' });
+    }
+
+    if (comment.user_id !== userId) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    // 2. Update comment
+    const { data: updated, error: updateError } = await supabaseAdmin
+      .from('comments')
+      .update({ content: content.trim() })
+      .eq('id', commentId)
+      .select()
+      .single();
+
+    if (updateError) throw updateError;
+
+    res.json(updated);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to update comment' });
+  }
+});
+
 // ==============================================
 //  PROFILE
 // ==============================================
