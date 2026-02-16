@@ -181,6 +181,46 @@ app.delete('/api/posts/:id', authenticate, async (req, res) => {
   }
 });
 
+// PUT /api/posts/:id — update own post
+app.put('/api/posts/:id', authenticate, async (req, res) => {
+  try {
+    const { content, remove_image } = req.body;
+
+    // 1. Verify ownership first
+    const { data: existing, error: fetchError } = await supabaseAdmin
+      .from('posts')
+      .select('id, image_url')
+      .eq('id', req.params.id)
+      .eq('user_id', req.user.id)
+      .single();
+
+    if (fetchError || !existing) {
+      return res.status(404).json({ error: 'Post not found or unauthorized' });
+    }
+
+    const updates = {};
+    if (content !== undefined) updates.content = content.trim();
+    if (remove_image) {
+      updates.image_url = null;
+      // Optional: Delete from storage bucket here if desired
+      // await supabaseAdmin.storage.from('post-images').remove([existing.image_url]);
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('posts')
+      .update(updates)
+      .eq('id', req.params.id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    res.json(data);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to update post' });
+  }
+});
+
 // ==============================================
 //  LIKES
 // ==============================================
