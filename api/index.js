@@ -182,9 +182,12 @@ app.delete('/api/posts/:id', authenticate, async (req, res) => {
 });
 
 // PUT /api/posts/:id — update own post
-app.put('/api/posts/:id', authenticate, async (req, res) => {
+app.put('/api/posts/:id', authenticate, upload.single('image'), async (req, res) => {
   try {
-    const { content, remove_image } = req.body;
+    // req.body fields might come as strings in multipart/form-data
+    const content = req.body.content;
+    const remove_image = req.body.remove_image === 'true' || req.body.remove_image === true;
+    const file = req.file;
 
     // 1. Verify ownership first
     const { data: existing, error: fetchError } = await supabaseAdmin
@@ -200,10 +203,28 @@ app.put('/api/posts/:id', authenticate, async (req, res) => {
 
     const updates = {};
     if (content !== undefined) updates.content = content.trim();
-    if (remove_image) {
+
+    // Handle image logic
+    if (file) {
+      // Upload new image
+      const fileName = `${req.user.id}/${Date.now()}_${file.originalname}`;
+      const { error: uploadError } = await supabaseAdmin.storage
+        .from('post-images')
+        .upload(fileName, file.buffer, {
+          contentType: file.mimetype,
+        });
+
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabaseAdmin.storage
+        .from('post-images')
+        .getPublicUrl(fileName);
+
+      updates.image_url = urlData.publicUrl;
+    } else if (remove_image) {
+      // Remove existing image
       updates.image_url = null;
       // Optional: Delete from storage bucket here if desired
-      // await supabaseAdmin.storage.from('post-images').remove([existing.image_url]);
     }
 
     const { data, error } = await supabaseAdmin
