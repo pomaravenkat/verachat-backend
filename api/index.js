@@ -289,6 +289,7 @@ app.get('/api/posts/:id/comments', async (req, res) => {
         content,
         created_at,
         user_id,
+        parent_id,
         profiles!comments_user_id_fkey ( username, avatar_url )
       `)
       .eq('post_id', req.params.id)
@@ -312,7 +313,7 @@ app.get('/api/posts/:id/comments', async (req, res) => {
 // POST /api/posts/:id/comments
 app.post('/api/posts/:id/comments', authenticate, async (req, res) => {
   try {
-    const { content } = req.body;
+    const { content, parent_id } = req.body;
     if (!content || !content.trim()) {
       return res.status(400).json({ error: 'Comment content is required' });
     }
@@ -323,12 +324,14 @@ app.post('/api/posts/:id/comments', authenticate, async (req, res) => {
         user_id: req.user.id,
         post_id: req.params.id,
         content: content.trim(),
+        parent_id: parent_id || null,
       })
       .select(`
         id,
         content,
         created_at,
         user_id,
+        parent_id,
         profiles!comments_user_id_fkey ( username, avatar_url )
       `)
       .single();
